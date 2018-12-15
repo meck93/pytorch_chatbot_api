@@ -41,6 +41,7 @@ def get_task(task_id):
 @app.route('/prediction', methods=['POST', 'GET'])
 def prediction():
     response = predict(str(request.json['message']))
+    print(response)
     return jsonify(response)
 
 
