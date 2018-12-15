@@ -19,6 +19,10 @@ tasks = [
 ]
 
 
+def predict(input_string):
+    return "You sent: {}".format(input_string)
+
+
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
     return jsonify({'tasks': tasks})
@@ -32,6 +36,12 @@ def get_task(task_id):
         abort(404)
 
     return jsonify({'task': task[0]})
+
+
+@app.route('/prediction', methods=['POST', 'GET'])
+def prediction():
+    response = predict(str(request.json['message']))
+    return jsonify(response)
 
 
 @app.errorhandler(404)
