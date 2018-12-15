@@ -20,7 +20,7 @@ tasks = [
 
 
 def predict(input_string):
-    return "You sent: {}".format(input_string)
+    return "ECHO: {}".format(input_string)
 
 
 @app.route('/tasks', methods=['GET'])
