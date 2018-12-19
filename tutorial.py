@@ -39,3 +39,14 @@ print("\npairs:")
 for pair in pairs[:10]:
     print(pair)
 pairs = trim_rare_words(voc, pairs, MIN_COUNT)
+
+# Example for validation of methods to prepare data for model
+small_batch_size = 5
+batches = batch2train_data(voc, [random.choice(pairs) for _ in range(small_batch_size)])
+input_variable, lengths, target_variable, mask, max_target_len = batches
+
+print("input_variable:", input_variable)
+print("lengths:", lengths)
+print("target_variable:", target_variable)
+print("mask:", mask)
+print("max_target_len:", max_target_len)

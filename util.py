@@ -1,6 +1,8 @@
 import unicodedata
 import re
 from model import Voc
+import torch
+import itertools
 
 '''
 Utility functions for corpus preprocessing
@@ -9,6 +11,9 @@ Utility functions for corpus preprocessing
 
 MAX_LENGTH = 10  # Maximum sentence length to consider
 MIN_COUNT = 3   # Minimum word count threshold for trimming
+PAD_token = 0  # Used for padding short sentences
+SOS_token = 1  # Start-of-sentence token
+EOS_token = 2  # End-of-sentence token
 
 def print_file(file_name, num_lines = 10):
     with open(file_name, 'rb') as file:
@@ -168,3 +173,50 @@ def trim_rare_words(voc, pairs, MIN_COUNT):
 
     print("Trimmed from {} pairs to {}, {:.4f} of total".format(len(pairs), len(keep_pairs), len(keep_pairs) / len(pairs)))
     return keep_pairs
+
+def indexes_from_sentence(voc, sentence):
+    return [voc.word2index[word] for word in sentence.split(' ')] + [EOS_token]
+
+
+def zero_padding(l, fillvalue=PAD_token):
+    return list(itertools.zip_longest(*l, fillvalue=fillvalue))
+
+def binary_matrix(l, value=PAD_token):
+    m = []
+    for i, seq in enumerate(l):
+        m.append([])
+        for token in seq:
+            if token == PAD_token:
+                m[i].append(0)
+            else:
+                m[i].append(1)
+    return m
+
+# Returns padded input sequence tensor and lengths
+def input_var(l, voc):
+    indexes_batch = [indexes_from_sentence(voc, sentence) for sentence in l]
+    lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
+    padList = zero_padding(indexes_batch)
+    padVar = torch.LongTensor(padList)
+    return padVar, lengths
+
+# Returns padded target sequence tensor, padding mask, and max target length
+def output_var(l, voc):
+    indexes_batch = [indexes_from_sentence(voc, sentence) for sentence in l]
+    max_target_len = max([len(indexes) for indexes in indexes_batch])
+    padList = zero_padding(indexes_batch)
+    mask = binary_matrix(padList)
+    mask = torch.ByteTensor(mask)
+    padVar = torch.LongTensor(padList)
+    return padVar, mask, max_target_len
+
+# Returns all items for a given batch of pairs
+def batch2train_data(voc, pair_batch):
+    pair_batch.sort(key=lambda x: len(x[0].split(" ")), reverse=True)
+    input_batch, output_batch = [], []
+    for pair in pair_batch:
+        input_batch.append(pair[0])
+        output_batch.append(pair[1])
+    inp, lengths = input_var(input_batch, voc)
+    output, mask, max_target_len = output_var(output_batch, voc)
+    return inp, lengths, output, mask, max_target_len
