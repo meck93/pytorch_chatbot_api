@@ -3,6 +3,7 @@ import re
 from model import Voc
 import torch
 import itertools
+import random
 
 '''
 Utility functions for corpus preprocessing
