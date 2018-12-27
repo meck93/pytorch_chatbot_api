@@ -185,6 +185,7 @@ class GreedySearchDecoder(nn.Module):
         # Initialize tensors to append decoded words to
         all_tokens = torch.zeros([0], device=device, dtype=torch.long)
         all_scores = torch.zeros([0], device=device)
+        
         # Iteratively decode one word token at a time
         for _ in range(max_length):
             # Forward pass through decoder
@@ -196,5 +197,6 @@ class GreedySearchDecoder(nn.Module):
             all_scores = torch.cat((all_scores, decoder_scores), dim=0)
             # Prepare current token to be next decoder input (add a dimension)
             decoder_input = torch.unsqueeze(decoder_input, 0)
+
         # Return collections of word tokens and scores
         return all_tokens, all_scores

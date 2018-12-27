@@ -10,20 +10,22 @@ Utility functions for corpus preprocessing
 
 '''
 
-MAX_LENGTH = 10  # Maximum sentence length to consider
+MAX_LENGTH = 12  # Maximum sentence length to consider
 MIN_COUNT = 3   # Minimum word count threshold for trimming
 PAD_token = 0  # Used for padding short sentences
 SOS_token = 1  # Start-of-sentence token
 EOS_token = 2  # End-of-sentence token
 
-def print_file(file_name, num_lines = 10):
+
+def print_file(file_name, num_lines=10):
     with open(file_name, 'rb') as file:
         lines = file.readlines()
     for line in lines[:num_lines]:
         print(line)
 
-# Splits each line of the file into a dictionary of fields
-# fields are lineId, characterID, movieID, character, text
+
+''' Splits each line of the file into a dictionary of fields
+    fields are lineId, characterID, movieID, character, text'''
 def load_lines(file_name, fields):
     lines = {}
     with open(file_name, 'r', encoding='iso-8859-1') as file:
@@ -33,11 +35,12 @@ def load_lines(file_name, fields):
             for i, field in enumerate(fields):
                 line_obj[field] = values[i]
             lines[line_obj['lineID']] = line_obj
+    print(lines)
     return lines
 
 
-# Groups fields of lines from 'load_lines' into conversations
-# based on movie_conversations.txt
+''' Groups fields of lines from 'load_lines' into conversations
+    based on movie_conversations.txt'''
 def load_conversations(file_name, lines, fields):
     conversations = []
     with open(file_name, 'r', encoding='iso-8859-1') as file:
@@ -60,7 +63,8 @@ def extract_sentence_pairs(conversations):
     qa_pairs = []
     for conversation in conversations:
         # Iterate over all the lines of the conversation
-        for i in range(len(conversation["lines"]) - 1):  # We ignore the last line (no answer for it)
+        # We ignore the last line (no answer for it)
+        for i in range(len(conversation["lines"]) - 1):
             input_line = conversation["lines"][i]["text"].strip()
             target_line = conversation["lines"][i+1]["text"].strip()
             # Filter wrong samples (if one of the lists is empty)
@@ -68,7 +72,8 @@ def extract_sentence_pairs(conversations):
                 qa_pairs.append([input_line, target_line])
     return qa_pairs
 
-def create_formatted_file(corpus, file_name ='formatted_movie_lines.txt'):
+
+def create_formatted_file(corpus, file_name='formatted_movie_lines.txt'):
     file = os.path.join(corpus, file_name)
 
     delimiter = '\t'
@@ -77,14 +82,17 @@ def create_formatted_file(corpus, file_name ='formatted_movie_lines.txt'):
 
     lines = {}
     conversations = []
-    MOVIE_LINES_FIELDS = ["lineID", "characterID", "movieID", "character", "text"]
-    MOVIE_CONVERSATIONS_FIELDS = ["character1ID", "character2ID", "movieID", "utteranceIDs"]
+    MOVIE_LINES_FIELDS = ["lineID", "characterID",
+                          "movieID", "character", "text"]
+    MOVIE_CONVERSATIONS_FIELDS = ["character1ID",
+                                  "character2ID", "movieID", "utteranceIDs"]
 
     print("\nProcessing corpus...")
-    lines = load_lines(os.path.join(corpus, 'movie_lines.txt'), MOVIE_LINES_FIELDS)
+    lines = load_lines(os.path.join(
+        corpus, 'movie_lines.txt'), MOVIE_LINES_FIELDS)
     print("\nLoading conversations...")
     conversations = load_conversations(os.path.join(corpus, "movie_conversations.txt"),
-                                      lines, MOVIE_CONVERSATIONS_FIELDS)
+                                       lines, MOVIE_CONVERSATIONS_FIELDS)
 
     print("\nWriting newly formatted file...")
     with open(file, 'w', encoding='utf-8') as outfile:
@@ -105,11 +113,18 @@ def unicode_to_ascii(s):
         if unicodedata.category(c) != 'Mn'
     )
 
-# Lowercase, trim, and remove non-letter characters
+
+''' 
+Lowercase, trim, and remove non-letter characters'''
 def normalize_string(s):
+    # lowercase the string
     s = unicode_to_ascii(s.lower().strip())
     s = re.sub(r"([.!?])", r" \1", s)
+
+    # replace any non-letter character expect for basic punctuation with a whitespace
     s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
+
+    # replace multiple whitespace with a single whitespace
     s = re.sub(r"\s+", r" ", s).strip()
     return s
 
@@ -147,6 +162,7 @@ def load_prepare_data(corpus, corpus_name, datafile, save_dir):
     print("Counted words:", voc.num_words)
     return voc, pairs
 
+
 def trim_rare_words(voc, pairs, MIN_COUNT):
     # Trim words used under the MIN_COUNT from the voc
     voc.trim(MIN_COUNT)
@@ -172,8 +188,10 @@ def trim_rare_words(voc, pairs, MIN_COUNT):
         if keep_input and keep_output:
             keep_pairs.append(pair)
 
-    print("Trimmed from {} pairs to {}, {:.4f} of total".format(len(pairs), len(keep_pairs), len(keep_pairs) / len(pairs)))
+    print("Trimmed from {} pairs to {}, {:.4f} of total".format(
+        len(pairs), len(keep_pairs), len(keep_pairs) / len(pairs)))
     return keep_pairs
+
 
 def indexes_from_sentence(voc, sentence):
     return [voc.word2index[word] for word in sentence.split(' ')] + [EOS_token]
@@ -181,6 +199,7 @@ def indexes_from_sentence(voc, sentence):
 
 def zero_padding(l, fillvalue=PAD_token):
     return list(itertools.zip_longest(*l, fillvalue=fillvalue))
+
 
 def binary_matrix(l, value=PAD_token):
     m = []

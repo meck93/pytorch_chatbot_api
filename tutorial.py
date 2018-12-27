@@ -17,6 +17,7 @@ import codecs
 from io import open
 import itertools
 import math
+from datetime import datetime
 
 from util import *
 from model import EncoderRNN, LuongAttnDecoderRNN, GreedySearchDecoder
@@ -37,12 +38,12 @@ hidden_size = 500
 encoder_n_layers = 2
 decoder_n_layers = 2
 dropout = 0.1
-batch_size = 64
+batch_size = 256
 
 # Set checkpoint to load from; set to None if starting from scratch
+# loadFilename = "/data/save/cb_model/cornell movie-dialogs corpus/2-2_500/4000_checkpoint.tar"
 loadFilename = None
 checkpoint_iter = 4000
-
 
 
 def train(input_variable, lengths, target_variable, mask, max_target_len, encoder, decoder, embedding,
@@ -85,7 +86,8 @@ def train(input_variable, lengths, target_variable, mask, max_target_len, encode
             # Teacher forcing: next input is current target
             decoder_input = target_variable[t].view(1, -1)
             # Calculate and accumulate loss
-            mask_loss, nTotal = maskNLLLoss(decoder_output, target_variable[t], mask[t])
+            mask_loss, nTotal = maskNLLLoss(
+                decoder_output, target_variable[t], mask[t])
             loss += mask_loss
             print_losses.append(mask_loss.item() * nTotal)
             n_totals += nTotal
@@ -96,10 +98,12 @@ def train(input_variable, lengths, target_variable, mask, max_target_len, encode
             )
             # No teacher forcing: next input is decoder's own current output
             _, topi = decoder_output.topk(1)
-            decoder_input = torch.LongTensor([[topi[i][0] for i in range(batch_size)]])
+            decoder_input = torch.LongTensor(
+                [[topi[i][0] for i in range(batch_size)]])
             decoder_input = decoder_input.to(device)
             # Calculate and accumulate loss
-            mask_loss, nTotal = maskNLLLoss(decoder_output, target_variable[t], mask[t])
+            mask_loss, nTotal = maskNLLLoss(
+                decoder_output, target_variable[t], mask[t])
             loss += mask_loss
             print_losses.append(mask_loss.item() * nTotal)
             n_totals += nTotal
@@ -117,11 +121,12 @@ def train(input_variable, lengths, target_variable, mask, max_target_len, encode
 
     return sum(print_losses) / n_totals
 
+
 def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size, print_every, save_every, clip, corpus_name, loadFilename):
 
     # Load batches for each iteration
     training_batches = [batch2train_data(voc, [random.choice(pairs) for _ in range(batch_size)])
-                      for _ in range(n_iteration)]
+                        for _ in range(n_iteration)]
 
     # Initializations
     print('Initializing ...')
@@ -145,12 +150,14 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
         # Print progress
         if iteration % print_every == 0:
             print_loss_avg = print_loss / print_every
-            print("Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(iteration, iteration / n_iteration * 100, print_loss_avg))
+            print("Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(
+                iteration, iteration / n_iteration * 100, print_loss_avg))
             print_loss = 0
 
         # Save checkpoint
         if (iteration % save_every == 0):
-            directory = os.path.join(save_dir, model_name, corpus_name, '{}-{}_{}'.format(encoder_n_layers, decoder_n_layers, hidden_size))
+            directory = os.path.join(save_dir, model_name, corpus_name, '{}-{}_{}'.format(
+                encoder_n_layers, decoder_n_layers, hidden_size))
             if not os.path.exists(directory):
                 os.makedirs(directory)
             torch.save({
@@ -164,15 +171,18 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
                 'embedding': embedding.state_dict()
             }, os.path.join(directory, '{}_{}.tar'.format(iteration, 'checkpoint')))
 
+
 def maskNLLLoss(inp, target, mask):
     nTotal = mask.sum()
-    crossEntropy = -torch.log(torch.gather(inp, 1, target.view(-1, 1)).squeeze(1))
+    crossEntropy = - \
+        torch.log(torch.gather(inp, 1, target.view(-1, 1)).squeeze(1))
     loss = crossEntropy.masked_select(mask).mean()
     loss = loss.to(device)
     return loss, nTotal.item()
 
+
 def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
-    ### Format input sentence as a batch
+    # Format input sentence as a batch
     # words -> indexes
     indexes_batch = [indexes_from_sentence(voc, sentence)]
     # Create lengths tensor
@@ -196,24 +206,31 @@ def evaluateInput(encoder, decoder, searcher, voc):
             # Get input sentence
             input_sentence = input('> ')
             # Check if it is quit case
-            if input_sentence == 'q' or input_sentence == 'quit': break
+            if input_sentence == 'q' or input_sentence == 'quit':
+                break
+
             # Normalize sentence
             input_sentence = normalize_string(input_sentence)
             # Evaluate sentence
-            output_words = evaluate(encoder, decoder, searcher, voc, input_sentence)
+            output_words = evaluate(
+                encoder, decoder, searcher, voc, input_sentence)
             # Format and print response sentence
-            output_words[:] = [x for x in output_words if not (x == 'EOS' or x == 'PAD')]
+            output_words[:] = [x for x in output_words if not (
+                x == 'EOS' or x == 'PAD')]
             print('Bot:', ' '.join(output_words))
 
         except KeyError:
             print("Error: Encountered unknown word.")
 
 
-
+# Initial data formatting and writing (only done once)
 # create_formatted_file(corpus)
+
 # Load/Assemble voc and pairs
 save_dir = os.path.join("data", "save")
-voc, pairs = load_prepare_data(corpus, corpus_name, os.path.join(corpus, 'formatted_movie_lines.txt'), save_dir)
+voc, pairs = load_prepare_data(corpus, corpus_name, os.path.join(
+    corpus, 'formatted_movie_lines.txt'), save_dir)
+
 # Print some pairs to validate
 print("\npairs:")
 for pair in pairs[:10]:
@@ -222,7 +239,8 @@ pairs = trim_rare_words(voc, pairs, MIN_COUNT)
 
 # Example for validation of methods to prepare data for model
 small_batch_size = 5
-batches = batch2train_data(voc, [random.choice(pairs) for _ in range(small_batch_size)])
+batches = batch2train_data(voc, [random.choice(pairs)
+                                 for _ in range(small_batch_size)])
 input_variable, lengths, target_variable, mask, max_target_len = batches
 
 print("input_variable:", input_variable)
@@ -231,17 +249,34 @@ print("target_variable:", target_variable)
 print("mask:", mask)
 print("max_target_len:", max_target_len)
 
+# Load model if a loadFilename is provided
+if loadFilename:
+    # If loading on same machine the model was trained on
+    checkpoint = torch.load(loadFilename)
+    # If loading a model trained on GPU to CPU
+    #checkpoint = torch.load(loadFilename, map_location=torch.device('cpu'))
+    encoder_sd = checkpoint['en']
+    decoder_sd = checkpoint['de']
+    encoder_optimizer_sd = checkpoint['en_opt']
+    decoder_optimizer_sd = checkpoint['de_opt']
+    embedding_sd = checkpoint['embedding']
+    voc.__dict__ = checkpoint['voc_dict']
+
 print('Building encoder and decoder ...')
 # Initialize word embeddings
 embedding = nn.Embedding(voc.num_words, hidden_size)
 if loadFilename:
     embedding.load_state_dict(embedding_sd)
+
 # Initialize encoder & decoder models
 encoder = EncoderRNN(hidden_size, embedding, encoder_n_layers, dropout)
-decoder = LuongAttnDecoderRNN(attn_model, embedding, hidden_size, voc.num_words, decoder_n_layers, dropout)
+decoder = LuongAttnDecoderRNN(
+    attn_model, embedding, hidden_size, voc.num_words, decoder_n_layers, dropout)
+
 if loadFilename:
     encoder.load_state_dict(encoder_sd)
     decoder.load_state_dict(decoder_sd)
+
 # Use appropriate device
 encoder = encoder.to(device)
 decoder = decoder.to(device)
@@ -253,7 +288,7 @@ teacher_forcing_ratio = 1.0
 learning_rate = 0.0001
 decoder_learning_ratio = 5.0
 n_iteration = 4000
-print_every = 1
+print_every = 25
 save_every = 500
 
 # Ensure dropout layers are in train mode
@@ -263,16 +298,23 @@ decoder.train()
 # Initialize optimizers
 print('Building optimizers ...')
 encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
-decoder_optimizer = optim.Adam(decoder.parameters(), lr=learning_rate * decoder_learning_ratio)
+decoder_optimizer = optim.Adam(
+    decoder.parameters(), lr=learning_rate * decoder_learning_ratio)
+
 if loadFilename:
     encoder_optimizer.load_state_dict(encoder_optimizer_sd)
     decoder_optimizer.load_state_dict(decoder_optimizer_sd)
 
 # Run training iterations
-print("Starting Training!")
+start_time = datetime.now()
+print("Starting Training!", str(start_time)[
+      str(start_time).find(" ") + 1:str(start_time).rfind(".")])
 trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer,
            embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size,
            print_every, save_every, clip, corpus_name, loadFilename)
+
+delta = datetime.now() - start_time
+print("Training took: {}".format(str(delta)[:str(delta).rfind(".")]))
 
 # Set dropout layers to eval mode
 encoder.eval()
