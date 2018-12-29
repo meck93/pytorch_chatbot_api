@@ -4,6 +4,9 @@ from model import Voc
 import torch
 import itertools
 import random
+import os
+import codecs
+import csv
 
 '''
 Utility functions for corpus preprocessing
@@ -43,8 +46,7 @@ def load_lines(file_name, fields):
 
 def load_conversations(file_name, lines, fields):
     '''
-    Groups fields of lines from 'load_lines' into conversations
-    based on movie_conversations.txt
+    Groups fields of lines from 'load_lines' into conversations based on movie_conversations.txt
     '''
     conversations = []
     with open(file_name, 'r', encoding='iso-8859-1') as file:
@@ -84,6 +86,7 @@ def create_formatted_file(corpus, file_name='formatted_movie_lines.txt'):
     file = os.path.join(corpus, file_name)
 
     delimiter = '\t'
+
     # Unescape the delimiter
     delimiter = str(codecs.decode(delimiter, 'unicode_escape'))
 
@@ -215,18 +218,22 @@ def load_prepare_data(corpus, corpus_name, datafile, save_dir):
 def trim_rare_words(voc, pairs, MIN_COUNT):
     # Trim words used under the MIN_COUNT from the voc
     voc.trim(MIN_COUNT)
+
     # Filter out pairs with trimmed words
     keep_pairs = []
+
     for pair in pairs:
         input_sentence = pair[0]
         output_sentence = pair[1]
         keep_input = True
         keep_output = True
+
         # Check input sentence
         for word in input_sentence.split(' '):
             if word not in voc.word2index:
                 keep_input = False
                 break
+
         # Check output sentence
         for word in output_sentence.split(' '):
             if word not in voc.word2index:
@@ -239,6 +246,7 @@ def trim_rare_words(voc, pairs, MIN_COUNT):
 
     print("Trimmed from {} pairs to {}, {:.4f} of total".format(
         len(pairs), len(keep_pairs), len(keep_pairs) / len(pairs)))
+
     return keep_pairs
 
 
