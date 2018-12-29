@@ -10,7 +10,7 @@ Utility functions for corpus preprocessing
 
 '''
 
-MAX_LENGTH = 12  # Maximum sentence length to consider
+MAX_LENGTH = 5  # Maximum sentence length to consider
 MIN_COUNT = 3   # Minimum word count threshold for trimming
 PAD_token = 0  # Used for padding short sentences
 SOS_token = 1  # Start-of-sentence token
@@ -24,9 +24,11 @@ def print_file(file_name, num_lines=10):
         print(line)
 
 
-''' Splits each line of the file into a dictionary of fields
-    fields are lineId, characterID, movieID, character, text'''
 def load_lines(file_name, fields):
+    '''
+    Splits each line of the file into a dictionary of fields
+    fields are lineId, characterID, movieID, character, text
+    '''
     lines = {}
     with open(file_name, 'r', encoding='iso-8859-1') as file:
         for line in file:
@@ -39,9 +41,11 @@ def load_lines(file_name, fields):
     return lines
 
 
-''' Groups fields of lines from 'load_lines' into conversations
-    based on movie_conversations.txt'''
 def load_conversations(file_name, lines, fields):
+    '''
+    Groups fields of lines from 'load_lines' into conversations
+    based on movie_conversations.txt
+    '''
     conversations = []
     with open(file_name, 'r', encoding='iso-8859-1') as file:
         for line in file:
@@ -58,8 +62,11 @@ def load_conversations(file_name, lines, fields):
             conversations.append(conv_obj)
     return conversations
 
-# Extracts pairs of sentences from conversations
+
 def extract_sentence_pairs(conversations):
+    """ 
+    Extracts pairs of sentences from conversations
+    """
     qa_pairs = []
     for conversation in conversations:
         # Iterate over all the lines of the conversation
@@ -105,31 +112,59 @@ def create_formatted_file(corpus, file_name='formatted_movie_lines.txt'):
     print_file(file)
 
 
-# Turn a Unicode string to plain ASCII, thanks to
-# http://stackoverflow.com/a/518232/2809427
 def unicode_to_ascii(s):
+    """
+    Turn a Unicode string to plain ASCII, thanks to
+    http://stackoverflow.com/a/518232/2809427
+    """
     return ''.join(
         c for c in unicodedata.normalize('NFD', s)
         if unicodedata.category(c) != 'Mn'
     )
 
 
-''' 
-Lowercase, trim, and remove non-letter characters'''
 def normalize_string(s):
+    ''' 
+    Lowercase, trim, and remove non-letter characters
+    '''
     # lowercase the string
     s = unicode_to_ascii(s.lower().strip())
     s = re.sub(r"([.!?])", r" \1", s)
+
+    # additional convertions
+    s = re.sub(r"i'm", "i am", s)
+    s = re.sub(r"he's", "he is", s)
+    s = re.sub(r"she's", "she is", s)
+    s = re.sub(r"it's", "it is", s)
+    s = re.sub(r"that's", "that is", s)
+    s = re.sub(r"what's", "that is", s)
+    s = re.sub(r"where's", "where is", s)
+    s = re.sub(r"how's", "how is", s)
+    s = re.sub(r"\'ll", " will", s)
+    s = re.sub(r"\'ve", " have", s)
+    s = re.sub(r"\'re", " are", s)
+    s = re.sub(r"\'d", " would", s)
+    s = re.sub(r"\'re", " are", s)
+    s = re.sub(r"won't", "will not", s)
+    s = re.sub(r"can't", "cannot", s)
+    s = re.sub(r"n't", " not", s)
+    s = re.sub(r"n'", "ng", s)
+    s = re.sub(r"'bout", "about", s)
+    s = re.sub(r"'til", "until", s)
 
     # replace any non-letter character expect for basic punctuation with a whitespace
     s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
 
     # replace multiple whitespace with a single whitespace
     s = re.sub(r"\s+", r" ", s).strip()
+
     return s
 
-# Read query/response pairs and return a voc object
+
 def read_vocs(datafile, corpus_name):
+    """
+    Read query/response pairs and return a voc object
+    """
     print("Reading lines...")
     # Read the file and split into lines
     lines = open(datafile, encoding='utf-8').\
@@ -139,27 +174,41 @@ def read_vocs(datafile, corpus_name):
     voc = Voc(corpus_name)
     return voc, pairs
 
-# Returns True iff both sentences in a pair 'p' are under the MAX_LENGTH threshold
+
 def filter_pair(p):
+    """
+    Returns True iff both sentences in a pair 'p' are under the MAX_LENGTH threshold
+    """
     # Input sequences need to preserve the last word for EOS token
     return len(p[0].split(' ')) < MAX_LENGTH and len(p[1].split(' ')) < MAX_LENGTH
 
-# Filter pairs using filterPair condition
+
 def filter_pairs(pairs):
+    """
+    Filter pairs using filterPair condition
+    """
     return [pair for pair in pairs if filter_pair(pair)]
 
-# Using the functions defined above, return a populated voc object and pairs list
+
 def load_prepare_data(corpus, corpus_name, datafile, save_dir):
+    """
+    Using the functions defined above, return a populated voc object and pairs list
+    """
     print("Start preparing training data ...")
+
     voc, pairs = read_vocs(datafile, corpus_name)
     print("Read {!s} sentence pairs".format(len(pairs)))
+
     pairs = filter_pairs(pairs)
     print("Trimmed to {!s} sentence pairs".format(len(pairs)))
     print("Counting words...")
+
     for pair in pairs:
         voc.add_sentence(pair[0])
         voc.add_sentence(pair[1])
+
     print("Counted words:", voc.num_words)
+
     return voc, pairs
 
 
@@ -212,16 +261,22 @@ def binary_matrix(l, value=PAD_token):
                 m[i].append(1)
     return m
 
-# Returns padded input sequence tensor and lengths
+
 def input_var(l, voc):
+    """
+    Returns padded input sequence tensor and lengths
+    """
     indexes_batch = [indexes_from_sentence(voc, sentence) for sentence in l]
     lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
     padList = zero_padding(indexes_batch)
     padVar = torch.LongTensor(padList)
     return padVar, lengths
 
-# Returns padded target sequence tensor, padding mask, and max target length
+
 def output_var(l, voc):
+    """
+    Returns padded target sequence tensor, padding mask, and max target length
+    """
     indexes_batch = [indexes_from_sentence(voc, sentence) for sentence in l]
     max_target_len = max([len(indexes) for indexes in indexes_batch])
     padList = zero_padding(indexes_batch)
@@ -230,13 +285,42 @@ def output_var(l, voc):
     padVar = torch.LongTensor(padList)
     return padVar, mask, max_target_len
 
-# Returns all items for a given batch of pairs
+
 def batch2train_data(voc, pair_batch):
+    """
+    Returns all items for a given batch of pairs
+    """
     pair_batch.sort(key=lambda x: len(x[0].split(" ")), reverse=True)
     input_batch, output_batch = [], []
+
     for pair in pair_batch:
         input_batch.append(pair[0])
         output_batch.append(pair[1])
+
     inp, lengths = input_var(input_batch, voc)
     output, mask, max_target_len = output_var(output_batch, voc)
+
     return inp, lengths, output, mask, max_target_len
+
+
+def sample_batches(voc, pairs, n_iteration, batch_size):
+    training_batches = []
+    curr_pairs = []
+
+    for _ in range(n_iteration):
+        batches = []
+
+        for _ in range(batch_size):
+            # check if all pairs have been used
+            if len(curr_pairs) == 0:
+                # copy all pairs and shuffle
+                curr_pairs = pairs.copy()
+                random.shuffle(curr_pairs)
+
+            # pop first pair from the list and add it to current batch
+            batches.append(curr_pairs.pop(0))
+
+        # append batch for current iteration
+        training_batches.append(batch2train_data(voc, batches))
+
+    return training_batches

@@ -18,32 +18,10 @@ from io import open
 import itertools
 import math
 from datetime import datetime
+from tensorboardX import SummaryWriter
 
 from util import *
 from model import EncoderRNN, LuongAttnDecoderRNN, GreedySearchDecoder
-
-corpus_name = 'cornell movie-dialogs corpus'
-corpus = os.path.join('data', corpus_name)
-
-USE_CUDA = torch.cuda.is_available()
-device = torch.device("cuda" if USE_CUDA else "cpu")
-
-
-# Model configuration
-model_name = 'cb_model'
-attn_model = 'dot'
-#attn_model = 'general'
-#attn_model = 'concat'
-hidden_size = 500
-encoder_n_layers = 2
-decoder_n_layers = 2
-dropout = 0.1
-batch_size = 256
-
-# Set checkpoint to load from; set to None if starting from scratch
-# loadFilename = "/data/save/cb_model/cornell movie-dialogs corpus/2-2_500/4000_checkpoint.tar"
-loadFilename = None
-checkpoint_iter = 4000
 
 
 def train(input_variable, lengths, target_variable, mask, max_target_len, encoder, decoder, embedding,
@@ -122,11 +100,19 @@ def train(input_variable, lengths, target_variable, mask, max_target_len, encode
     return sum(print_losses) / n_totals
 
 
-def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size, print_every, save_every, clip, corpus_name, loadFilename):
+def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, encoder_scheduler, decoder_scheduler, embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size, print_every, save_every, clip, corpus_name, loadFilename):
 
     # Load batches for each iteration
-    training_batches = [batch2train_data(voc, [random.choice(pairs) for _ in range(batch_size)])
-                        for _ in range(n_iteration)]
+    # training_batches = [batch2train_data(voc, [random.choice(pairs) for _ in range(batch_size)])
+    #                     for _ in range(n_iteration)]
+
+    training_batches = sample_batches(voc, pairs, n_iteration, batch_size)
+
+    print("Size of Training Batches Array:", len(training_batches))
+
+    n_samples = len(pairs)
+    iters_per_epoch = n_samples // batch_size
+    curr_epoch = 0
 
     # Initializations
     print('Initializing ...')
@@ -147,12 +133,22 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
                      decoder, embedding, encoder_optimizer, decoder_optimizer, batch_size, clip)
         print_loss += loss
 
+        # Check when a full epoch has been completed
+        if iteration % iters_per_epoch == 0:
+            curr_epoch += 1
+            encoder_scheduler.step()
+            decoder_scheduler.step()
+            print('Current Learning Rate: {}'.format(encoder_scheduler.get_lr()))
+
         # Print progress
-        if iteration % print_every == 0:
+        if iteration % print_every == 0 or iteration in [1, 5, 10]:
             print_loss_avg = print_loss / print_every
-            print("Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(
-                iteration, iteration / n_iteration * 100, print_loss_avg))
+            print("Epoch: {}, Iteration: {}; Percent complete: {:.1f}%; Average loss: {:.4f}".format(
+                curr_epoch, iteration, iteration / n_iteration * 100, print_loss_avg))
             print_loss = 0
+
+            # log the average loss every %print_progress% number of iterations
+            writer.add_scalar('average_loss', print_loss_avg, iteration)
 
         # Save checkpoint
         if (iteration % save_every == 0):
@@ -166,6 +162,8 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
                 'de': decoder.state_dict(),
                 'en_opt': encoder_optimizer.state_dict(),
                 'de_opt': decoder_optimizer.state_dict(),
+                'en_sch': encoder_scheduler.state_dict(),
+                'de_sch': decoder_scheduler.state_dict(),
                 'loss': loss,
                 'voc_dict': voc.__dict__,
                 'embedding': embedding.state_dict()
@@ -201,7 +199,7 @@ def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
 
 def evaluateInput(encoder, decoder, searcher, voc):
     input_sentence = ''
-    while(1):
+    while(True):
         try:
             # Get input sentence
             input_sentence = input('> ')
@@ -211,9 +209,11 @@ def evaluateInput(encoder, decoder, searcher, voc):
 
             # Normalize sentence
             input_sentence = normalize_string(input_sentence)
+
             # Evaluate sentence
             output_words = evaluate(
                 encoder, decoder, searcher, voc, input_sentence)
+
             # Format and print response sentence
             output_words[:] = [x for x in output_words if not (
                 x == 'EOS' or x == 'PAD')]
@@ -222,6 +222,33 @@ def evaluateInput(encoder, decoder, searcher, voc):
         except KeyError:
             print("Error: Encountered unknown word.")
 
+
+####################
+# Main Section
+####################
+corpus_name = 'cornell movie-dialogs corpus'
+corpus = os.path.join('data', corpus_name)
+
+USE_CUDA = torch.cuda.is_available()
+device = torch.device("cuda" if USE_CUDA else "cpu")
+
+# Model configuration
+model_name = 'cb_model'
+attn_model = 'dot'
+#attn_model = 'general'
+#attn_model = 'concat'
+hidden_size = 512
+encoder_n_layers = 2
+decoder_n_layers = 2
+dropout = 0.1
+batch_size = 128
+
+# Set checkpoint to load from; set to None if starting from scratch
+# loadFilename = "/data/save/cb_model/cornell movie-dialogs corpus/max_len_12_best/4000_checkpoint.tar"
+loadFilename = None
+
+# tensorboardX summary writer for visualizations
+writer = SummaryWriter("runs/test", flush_secs=10)
 
 # Initial data formatting and writing (only done once)
 # create_formatted_file(corpus)
@@ -235,19 +262,24 @@ voc, pairs = load_prepare_data(corpus, corpus_name, os.path.join(
 print("\npairs:")
 for pair in pairs[:10]:
     print(pair)
+
 pairs = trim_rare_words(voc, pairs, MIN_COUNT)
+n_samples = len(pairs)
 
-# Example for validation of methods to prepare data for model
-small_batch_size = 5
-batches = batch2train_data(voc, [random.choice(pairs)
-                                 for _ in range(small_batch_size)])
-input_variable, lengths, target_variable, mask, max_target_len = batches
+print("Dataset: # of samples: {} - {} Iterations per Epoch with batch size {}".format(
+    n_samples, n_samples // batch_size, batch_size))
 
-print("input_variable:", input_variable)
-print("lengths:", lengths)
-print("target_variable:", target_variable)
-print("mask:", mask)
-print("max_target_len:", max_target_len)
+# # Example for validation of methods to prepare data for model
+# small_batch_size = 5
+# batches = batch2train_data(voc, [random.choice(pairs)
+#                                  for _ in range(small_batch_size)])
+# input_variable, lengths, target_variable, mask, max_target_len = batches
+
+# print("input_variable:", input_variable)
+# print("lengths:", lengths)
+# print("target_variable:", target_variable)
+# print("mask:", mask)
+# print("max_target_len:", max_target_len)
 
 # Load model if a loadFilename is provided
 if loadFilename:
@@ -259,6 +291,8 @@ if loadFilename:
     decoder_sd = checkpoint['de']
     encoder_optimizer_sd = checkpoint['en_opt']
     decoder_optimizer_sd = checkpoint['de_opt']
+    encoder_scheduler_sd = checkpoint['en_sch']
+    decoder_scheduler_sd = checkpoint['de_sch']
     embedding_sd = checkpoint['embedding']
     voc.__dict__ = checkpoint['voc_dict']
 
@@ -285,9 +319,10 @@ print('Models built and ready to go!')
 # Configure training/optimization
 clip = 50.0
 teacher_forcing_ratio = 1.0
-learning_rate = 0.0001
+learning_rate = 0.001
 decoder_learning_ratio = 5.0
-n_iteration = 4000
+l2_penalty = 0.005
+n_iteration = 10000
 print_every = 25
 save_every = 500
 
@@ -297,21 +332,34 @@ decoder.train()
 
 # Initialize optimizers
 print('Building optimizers ...')
-encoder_optimizer = optim.Adam(encoder.parameters(), lr=learning_rate)
-decoder_optimizer = optim.Adam(
-    decoder.parameters(), lr=learning_rate * decoder_learning_ratio)
+encoder_optimizer = optim.Adam(
+    encoder.parameters(), lr=learning_rate, weight_decay=l2_penalty)
+decoder_optimizer = optim.Adam(decoder.parameters(
+), lr=learning_rate * decoder_learning_ratio, weight_decay=l2_penalty)
+
+# Initialize learning rate schedulers
+encoder_scheduler = optim.lr_scheduler.MultiStepLR(
+    encoder_optimizer, milestones=[5, 10], gamma=0.1)
+decoder_scheduler = optim.lr_scheduler.MultiStepLR(
+    decoder_optimizer, milestones=[5, 10], gamma=0.1)
 
 if loadFilename:
     encoder_optimizer.load_state_dict(encoder_optimizer_sd)
     decoder_optimizer.load_state_dict(decoder_optimizer_sd)
+    encoder_scheduler.load_state_dict(encoder_scheduler_sd)
+    decoder_scheduler.load_state_dict(decoder_scheduler_sd)
 
 # Run training iterations
 start_time = datetime.now()
 print("Starting Training!", str(start_time)[
       str(start_time).find(" ") + 1:str(start_time).rfind(".")])
-trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer,
+
+trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, encoder_scheduler, decoder_scheduler,
            embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size,
            print_every, save_every, clip, corpus_name, loadFilename)
+
+# export scalar data to JSON for external processing
+writer.close()
 
 delta = datetime.now() - start_time
 print("Training took: {}".format(str(delta)[:str(delta).rfind(".")]))
