@@ -1,31 +1,35 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-from __future__ import unicode_literals
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
-import torch
-from torch.jit import script, trace
-import torch.nn as nn
-from torch import optim
-import torch.nn.functional as F
-import csv
-import random
-import re
-import os
-import unicodedata
 import codecs
-from io import open
+import csv
 import itertools
 import math
+import os
+import random
+import re
+import unicodedata
 from datetime import datetime
-from tensorboardX import SummaryWriter
+from io import open
 
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.model_selection import train_test_split
+from tensorboardX import SummaryWriter
+from torch import optim
+from torch.jit import script, trace
+
+from model import EncoderRNN, GreedySearchDecoder, LuongAttnDecoderRNN
 from util import *
-from model import EncoderRNN, LuongAttnDecoderRNN, GreedySearchDecoder
 
 
 def train(input_variable, lengths, target_variable, mask, max_target_len, encoder, decoder, embedding,
           encoder_optimizer, decoder_optimizer, batch_size, clip, max_length=MAX_LENGTH):
+    """
+    Compute the training step for the current batch.
+    Update the model weights.
+    """
 
     # Zero gradients
     encoder_optimizer.zero_grad()
@@ -100,31 +104,101 @@ def train(input_variable, lengths, target_variable, mask, max_target_len, encode
     return sum(print_losses) / n_totals
 
 
+def validate(input_variable, lengths, target_variable, mask, max_target_len, encoder, decoder, embedding, batch_size):
+    """
+    Evaluate performance on validation set
+    """
+    # switch model to evaluation mode
+    encoder.eval()
+    decoder.eval()
+
+    # Zero gradients
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
+
+    # Set device options
+    input_variable = input_variable.to(device)
+    lengths = lengths.to(device)
+    target_variable = target_variable.to(device)
+    mask = mask.to(device)
+
+    # Initialize variables
+    print_losses = []
+    n_totals = 0
+
+    with torch.no_grad():
+        # Forward pass through encoder
+        encoder_outputs, encoder_hidden = encoder(input_variable, lengths)
+
+        # Create initial decoder input (start with SOS tokens for each sentence)
+        decoder_input = torch.LongTensor(
+            [[SOS_token for _ in range(batch_size)]])
+        decoder_input = decoder_input.to(device)
+
+        # Set initial decoder hidden state to the encoder's final hidden state
+        decoder_hidden = encoder_hidden[:decoder.n_layers]
+
+        for t in range(max_target_len):
+            decoder_output, decoder_hidden = decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+
+            # No teacher forcing: next input is decoder's own current output
+            _, topi = decoder_output.topk(1)
+            decoder_input = torch.LongTensor(
+                [[topi[i][0] for i in range(batch_size)]])
+            decoder_input = decoder_input.to(device)
+
+            # Calculate and accumulate loss
+            mask_loss, nTotal = maskNLLLoss(
+                decoder_output, target_variable[t], mask[t])
+            print_losses.append(mask_loss.item() * nTotal)
+            n_totals += nTotal
+
+    # switch model to training mode
+    encoder.train()
+    decoder.train()
+
+    return sum(print_losses) / n_totals
+
+
 def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, encoder_scheduler, decoder_scheduler, embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size, print_every, save_every, clip, corpus_name, loadFilename):
 
-    # Load batches for each iteration
-    # training_batches = [batch2train_data(voc, [random.choice(pairs) for _ in range(batch_size)])
-    #                     for _ in range(n_iteration)]
+    # shuffle dataset
+    random.shuffle(pairs)
 
-    training_batches = sample_batches(voc, pairs, n_iteration, batch_size)
+    # split the pairs into shuffled training and validation splits
+    train_pairs, val_pairs = train_test_split(
+        pairs, test_size=0.15, random_state=SEED)
 
-    print("Size of Training Batches Array:", len(training_batches))
+    n_train_pairs = len(train_pairs)
+    n_val_pairs = len(val_pairs)
+    print("Dataset: # of samples: {}, Train: {}, Val: {}, {} Iters / Epoch, Batch Size: {}".format(
+        len(pairs), n_train_pairs, n_val_pairs, n_train_pairs // batch_size, batch_size))
 
-    n_samples = len(pairs)
-    iters_per_epoch = n_samples // batch_size
-    curr_epoch = 0
+    # create a training batch for each iteration
+    training_batches = sample_batches(
+        voc, train_pairs, n_iteration, batch_size)
+
+    # create a validation batch for each %print_every% training batches
+    validation_batches = sample_batches(
+        voc, val_pairs, (n_iteration // print_every) + 1, batch_size)
+    val_count = 0
 
     # Initializations
     print('Initializing ...')
+    curr_epoch = 0
     start_iteration = 1
     print_loss = 0
+
     if loadFilename:
         start_iteration = checkpoint['iteration'] + 1
 
     # Training loop
     print("Training...")
     for iteration in range(start_iteration, n_iteration + 1):
+        # Current training batch
         training_batch = training_batches[iteration - 1]
+
         # Extract fields from batch
         input_variable, lengths, target_variable, mask, max_target_len = training_batch
 
@@ -134,11 +208,13 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
         print_loss += loss
 
         # Check when a full epoch has been completed
-        if iteration % iters_per_epoch == 0:
+        if iteration % (n_train_pairs // batch_size) == 0:
             curr_epoch += 1
-            encoder_scheduler.step()
-            decoder_scheduler.step()
-            print('Current Learning Rate: {}'.format(encoder_scheduler.get_lr()))
+            # TODO: Figure out if learning rate scheduling is really necessary with Adam optimizer
+            # encoder_scheduler.step()
+            # decoder_scheduler.step()
+            print('Current Learning Rate: {}'.format(
+                encoder_scheduler.get_lr()))
 
         # Print progress
         if iteration % print_every == 0 or iteration in [1, 5, 10]:
@@ -148,7 +224,24 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
             print_loss = 0
 
             # log the average loss every %print_progress% number of iterations
-            writer.add_scalar('average_loss', print_loss_avg, iteration)
+            train_writer.add_scalar('avg_loss', print_loss_avg, iteration)
+
+        # compute the validation loss
+        if iteration % print_every == 0:
+            # current validation batch
+            val_batch = validation_batches[val_count]
+            input_variable, lengths, target_variable, mask, max_target_len = val_batch
+            val_count += 1
+
+            # compute validation loss
+            dev_loss = validate(input_variable, lengths, target_variable, mask,
+                                max_target_len, encoder, decoder, embedding, batch_size)
+
+            print("Epoch: {}, Iteration: {}; Val Loss: {:.4f}".format(
+                curr_epoch, iteration, dev_loss))
+
+            # log the average loss every %print_progress% number of iterations
+            val_writer.add_scalar('avg_loss', dev_loss, iteration)
 
         # Save checkpoint
         if (iteration % save_every == 0):
@@ -226,29 +319,35 @@ def evaluateInput(encoder, decoder, searcher, voc):
 ####################
 # Main Section
 ####################
-corpus_name = 'cornell movie-dialogs corpus'
-corpus = os.path.join('data', corpus_name)
-
 USE_CUDA = torch.cuda.is_available()
 device = torch.device("cuda" if USE_CUDA else "cpu")
+
+# set the random seed
+SEED = 15
+random.seed(SEED)
 
 # Model configuration
 model_name = 'cb_model'
 attn_model = 'dot'
-#attn_model = 'general'
-#attn_model = 'concat'
+# attn_model = 'general'
+# attn_model = 'concat'
 hidden_size = 512
 encoder_n_layers = 2
 decoder_n_layers = 2
 dropout = 0.1
 batch_size = 128
 
+corpus_name = 'cornell movie-dialogs corpus'
+corpus = os.path.join('data', corpus_name)
+
 # Set checkpoint to load from; set to None if starting from scratch
 # loadFilename = "/data/save/cb_model/cornell movie-dialogs corpus/max_len_12_best/4000_checkpoint.tar"
 loadFilename = None
 
 # tensorboardX summary writer for visualizations
-writer = SummaryWriter("runs/test", flush_secs=10)
+train_writer = SummaryWriter("runs/test2/train", flush_secs=10)
+val_writer = SummaryWriter('runs/test2/val', flush_secs=10)
+
 
 # Initial data formatting and writing (only done once)
 # create_formatted_file(corpus)
@@ -256,18 +355,15 @@ writer = SummaryWriter("runs/test", flush_secs=10)
 # Load/Assemble voc and pairs
 save_dir = os.path.join("data", "save")
 voc, pairs = load_prepare_data(corpus, corpus_name, os.path.join(
-    corpus, 'formatted_movie_lines.txt'), save_dir)
+    corpus, 'formatted_movie_lines.txt'))
 
 # Print some pairs to validate
 print("\npairs:")
 for pair in pairs[:10]:
     print(pair)
 
-pairs = trim_rare_words(voc, pairs, MIN_COUNT)
-n_samples = len(pairs)
-
-print("Dataset: # of samples: {} - {} Iterations per Epoch with batch size {}".format(
-    n_samples, n_samples // batch_size, batch_size))
+# trim the vocabulary to the lower word count limit
+voc, pairs = trim_rare_words(voc, pairs, MIN_COUNT)
 
 # # Example for validation of methods to prepare data for model
 # small_batch_size = 5
@@ -319,10 +415,10 @@ print('Models built and ready to go!')
 # Configure training/optimization
 clip = 50.0
 teacher_forcing_ratio = 1.0
-learning_rate = 0.001
+learning_rate = 0.0001
 decoder_learning_ratio = 5.0
-l2_penalty = 0.005
-n_iteration = 10000
+l2_penalty = 0.001
+n_iteration = 1000
 print_every = 25
 save_every = 500
 
@@ -354,12 +450,12 @@ start_time = datetime.now()
 print("Starting Training!", str(start_time)[
       str(start_time).find(" ") + 1:str(start_time).rfind(".")])
 
-trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, encoder_scheduler, decoder_scheduler,
-           embedding, encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size,
-           print_every, save_every, clip, corpus_name, loadFilename)
+trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, decoder_optimizer, encoder_scheduler, decoder_scheduler, embedding,
+           encoder_n_layers, decoder_n_layers, save_dir, n_iteration, batch_size, print_every, save_every, clip, corpus_name, loadFilename)
 
-# export scalar data to JSON for external processing
-writer.close()
+# write tensorboard data to file
+train_writer.close()
+val_writer.close()
 
 delta = datetime.now() - start_time
 print("Training took: {}".format(str(delta)[:str(delta).rfind(".")]))

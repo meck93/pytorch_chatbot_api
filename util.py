@@ -1,23 +1,29 @@
-import unicodedata
-import re
-from model import Voc
-import torch
-import itertools
-import random
-import os
 import codecs
 import csv
+import itertools
+import os
+import random
+import re
+import unicodedata
+
+import torch
+
+from model import Voc
 
 '''
 Utility functions for corpus preprocessing
 
 '''
 
-MAX_LENGTH = 5  # Maximum sentence length to consider
+MAX_LENGTH = 10  # Maximum sentence length to consider
 MIN_COUNT = 3   # Minimum word count threshold for trimming
-PAD_token = 0  # Used for padding short sentences
-SOS_token = 1  # Start-of-sentence token
-EOS_token = 2  # End-of-sentence token
+PAD_token = 0   # Used for padding short sentences
+SOS_token = 1   # Start-of-sentence token
+EOS_token = 2   # End-of-sentence token
+
+# set the random seed
+SEED = 15
+random.seed(SEED)
 
 
 def print_file(file_name, num_lines=10):
@@ -154,6 +160,7 @@ def normalize_string(s):
     s = re.sub(r"n'", "ng", s)
     s = re.sub(r"'bout", "about", s)
     s = re.sub(r"'til", "until", s)
+    s = re.sub(r"let's", "lets", s)
 
     # replace any non-letter character expect for basic punctuation with a whitespace
     s = re.sub(r"[^a-zA-Z.!?]+", r" ", s)
@@ -193,7 +200,7 @@ def filter_pairs(pairs):
     return [pair for pair in pairs if filter_pair(pair)]
 
 
-def load_prepare_data(corpus, corpus_name, datafile, save_dir):
+def load_prepare_data(corpus, corpus_name, datafile):
     """
     Using the functions defined above, return a populated voc object and pairs list
     """
@@ -247,7 +254,7 @@ def trim_rare_words(voc, pairs, MIN_COUNT):
     print("Trimmed from {} pairs to {}, {:.4f} of total".format(
         len(pairs), len(keep_pairs), len(keep_pairs) / len(pairs)))
 
-    return keep_pairs
+    return voc, keep_pairs
 
 
 def indexes_from_sentence(voc, sentence):
