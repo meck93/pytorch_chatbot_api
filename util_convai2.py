@@ -1,11 +1,11 @@
-import unicodedata
-import re
-from model import Voc
-import torch
-import itertools
 import codecs
 import csv
+import re
 from pprint import pprint
+
+import torch
+
+from model import Voc
 
 
 def create_formatted_file(filename='data/convai2/train_none_original_no_cands.txt', fields=['question', 'answer']):
