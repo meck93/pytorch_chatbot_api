@@ -70,13 +70,15 @@ class Deploy():
             # Format and print response sentence
             output_words[:] = [x for x in output_words if not (
                 x == 'EOS' or x == 'PAD')]
-            return(' '.join(output_words))
+            answer = "Bot: " + ' '.join(output_words)
+            print(answer)
+            return answer
 
         except KeyError:
-            return "Error: Encountered unknown word."
+            print("Error: Encountered unknown word.")
+            return KeyError
 
     def setup_model(self):
-
         # Load/Assemble voc
         self.voc = Voc('cornell movie-dialogs corpus')
 
@@ -118,4 +120,5 @@ class Deploy():
         if not self.setup:
             self.setup_model()
             self.setup = True
+
         return self.evaluate_question(self.encoder, self.decoder, self.searcher, self.voc, question)
