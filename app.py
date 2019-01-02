@@ -1,4 +1,5 @@
 from flask import Flask, jsonify, abort, make_response, request
+from deploy import reply
 
 # webapp
 app = Flask(__name__, template_folder='./')
@@ -19,10 +20,6 @@ tasks = [
 ]
 
 
-def predict(input_string):
-    return "ECHO: {}".format(input_string)
-
-
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
     return jsonify({'tasks': tasks})
@@ -40,7 +37,7 @@ def get_task(task_id):
 
 @app.route('/prediction', methods=['POST', 'GET'])
 def prediction():
-    response = predict(str(request.json['message']))
+    response = reply(str(request.json['message']))
     print(response)
     return jsonify(response)
 
