@@ -62,6 +62,8 @@ class Deploy():
 
     def evaluate_question(self, encoder, decoder, searcher, voc, question):
         try:
+            print(question)
+
             # Normalize sentence
             question = normalize_string(question)
 
@@ -72,12 +74,13 @@ class Deploy():
             # Format and print response sentence
             output_words[:] = [x for x in output_words if not (
                 x == 'EOS' or x == 'PAD')]
-            answer = "Bot: " + ' '.join(output_words)
+            answer = ' '.join(output_words)
             print(answer)
             return answer
 
         except KeyError:
             print("Error: Encountered unknown word.")
+            return "Error: Encountered unknown word."
 
     def setup_model(self):
         # Load/Assemble voc
@@ -121,7 +124,6 @@ class Deploy():
         self.searcher = GreedySearchDecoder(self.encoder, self.decoder)
 
     def reply(self, question):
-        print(question)
         if not self.setup:
             self.setup_model()
             self.setup = True
