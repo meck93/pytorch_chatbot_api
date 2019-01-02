@@ -14,8 +14,10 @@ class Deploy():
         # setup
         self.setup = False
 
-        # set the device to cpu
-        self.device = torch.device('cpu')
+        # setting device on GPU if available, else CPU
+        self.device = torch.device(
+            'cuda' if torch.cuda.is_available() else 'cpu')
+        print('Using device:', self.device)
 
         # Set checkpoint to load from
         self.loadFilename = "./model/pretrained_model_checkpoint.tar"
@@ -76,7 +78,6 @@ class Deploy():
 
         except KeyError:
             print("Error: Encountered unknown word.")
-            return KeyError
 
     def setup_model(self):
         # Load/Assemble voc
@@ -109,6 +110,10 @@ class Deploy():
         # Use appropriate device
         self.encoder = self.encoder.to(self.device)
         self.decoder = self.decoder.to(self.device)
+
+        # Set dropout layers to eval mode
+        self.encoder.eval()
+        self.decoder.eval()
 
         print('Models built and ready to go!')
 
