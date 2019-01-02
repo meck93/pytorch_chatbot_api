@@ -1,8 +1,9 @@
 from flask import Flask, jsonify, abort, make_response, request
-from deploy import reply
+from deploy import Deploy
 
 # webapp
 app = Flask(__name__, template_folder='./')
+predictor = Deploy()
 
 tasks = [
     {
@@ -37,7 +38,7 @@ def get_task(task_id):
 
 @app.route('/prediction', methods=['POST', 'GET'])
 def prediction():
-    response = reply(str(request.json['message']))
+    response = predictor.reply(str(request.json['message']))
     print(response)
     return jsonify(response)
 
