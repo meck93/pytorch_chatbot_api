@@ -18,7 +18,7 @@ loadFilename = "./model/pretrained_model_checkpoint.tar"
 
 # Model configuration
 attn_model = 'dot'
-hidden_size = 512
+hidden_size = 500
 encoder_n_layers = 2
 decoder_n_layers = 2
 dropout = 0.1
@@ -80,7 +80,7 @@ def setup_model():
     device = torch.device('cpu')
 
     # Load/Assemble voc
-    voc = Voc('trained')
+    voc = Voc('cornell movie-dialogs corpus')
 
     # If loading on same machine the model was trained on
     checkpoint = torch.load(loadFilename, map_location=device)
@@ -115,6 +115,8 @@ def setup_model():
 
 
 def reply(question):
+    print(question)
     if not setup:
         setup_model()
+        setup = True
     return evaluate_question(encoder, decoder, searcher, voc, question)
