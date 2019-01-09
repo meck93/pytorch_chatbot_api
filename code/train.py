@@ -1,16 +1,9 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import codecs
-import csv
-import itertools
-import math
 import os
 import random
-import re
-import unicodedata
 from datetime import datetime
-from io import open
 
 import torch
 import torch.nn as nn
@@ -18,12 +11,11 @@ import torch.nn.functional as F
 from sklearn.model_selection import train_test_split
 from tensorboardX import SummaryWriter
 from torch import optim
-from torch.jit import script, trace
 
 from models.decoder import LuongAttnDecoderRNN
 from models.encoder import EncoderRNN
-from models.greedy_search import GreedySearchDecoder
-from models.topk_search import TopKSearchDecoder
+from models.greedysearch import GreedySearchDecoder
+from models.topksearch import TopKSearchDecoder
 from models.voc import Voc
 from util import *
 
@@ -179,6 +171,8 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
     print("Dataset: # of samples: {}, Train: {}, Val: {}, {} Iters / Epoch, Batch Size: {}".format(
         len(pairs), n_train_pairs, n_val_pairs, n_train_pairs // batch_size, batch_size))
 
+    print("Creating training and validation batches ...")
+
     # create a training batch for each iteration
     training_batches = sample_batches(
         voc, train_pairs, n_iteration, batch_size)
@@ -189,7 +183,6 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
     val_count = 0
 
     # Initializations
-    print('Initializing ...')
     curr_epoch = 0
     start_iteration = 1
     print_loss = 0
@@ -198,7 +191,7 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
         start_iteration = checkpoint['iteration'] + 1
 
     # Training loop
-    print("Training...")
+    print("Let's Train ...")
     for iteration in range(start_iteration, n_iteration + 1):
         # Current training batch
         training_batch = training_batches[iteration - 1]

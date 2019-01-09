@@ -7,8 +7,8 @@ from util import *
 from models.voc import Voc
 from models.decoder import LuongAttnDecoderRNN
 from models.encoder import EncoderRNN
-from models.greedy_search import GreedySearchDecoder
-from models.topk_search import TopKSearchDecoder
+from models.greedysearch import GreedySearchDecoder
+from models.topksearch import TopKSearchDecoder
 
 
 class Deploy(object):
@@ -141,8 +141,8 @@ class Deploy(object):
         print('Models built and ready to go!')
 
         # Initialize search module
-        self.searcher = GreedySearchDecoder(self.encoder, self.decoder)
-        # self.searcher = TopKSearchDecoder(self.encoder, self.decoder, self.k)
+        # self.searcher = GreedySearchDecoder(self.encoder, self.decoder)
+        self.searcher = TopKSearchDecoder(self.encoder, self.decoder, self.k)
 
     def reply(self, question):
         if not self.setup:
