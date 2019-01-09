@@ -1,8 +1,10 @@
 from flask import Flask, jsonify, abort, make_response, request
-from deploy import Deploy
+from code.deploy import Deploy
 
 # webapp
 app = Flask(__name__, template_folder='./')
+
+# instantiate pre-trained seq2seq model
 predictor = Deploy()
 
 tasks = [

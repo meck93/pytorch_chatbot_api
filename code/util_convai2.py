@@ -5,10 +5,10 @@ from pprint import pprint
 
 import torch
 
-from model import Voc
+from models.voc import Voc
 
 
-def create_formatted_file(filename='data/convai2/train_none_original_no_cands.txt', fields=['question', 'answer']):
+def create_formatted_file(filename, fields=['question', 'answer']):
     lines = {}
     conv_nr = 0
 
@@ -48,7 +48,8 @@ def create_sentence_pairs(lines):
     return qa_pairs
 
 
-lines = create_formatted_file()
+in_file = "../../data/convai2/train_none_original_no_cands.txt"
+lines = create_formatted_file(in_file)
 qa_pairs = create_sentence_pairs(lines)
 pprint(qa_pairs[:14])
 

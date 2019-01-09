@@ -1,15 +1,21 @@
 import torch
 import os
+import random
 
 from util import *
-from model import EncoderRNN, LuongAttnDecoderRNN, GreedySearchDecoder, Voc
+
+from models.voc import Voc
+from models.decoder import LuongAttnDecoderRNN
+from models.encoder import EncoderRNN
+from models.greedy_search import GreedySearchDecoder
+from models.topk_search import TopKSearchDecoder
 
 
-class Deploy():
-    def __init__(self):
+class Deploy(object):
+    def __init__(self, filename="../models/pretrained_model_checkpoint.tar"):
         # set the random seed
         self.SEED = 15
-        random.seed(SEED)
+        random.seed(self.SEED)
 
         # setup
         self.setup = False
@@ -20,7 +26,7 @@ class Deploy():
         print('Using device:', self.device)
 
         # Set checkpoint to load from
-        self.loadFilename = "./model/pretrained_model_checkpoint.tar"
+        self.loadFilename = "../models/pretrained_model_checkpoint.tar"
 
         # Model configuration
         self.attn_model = 'dot'
@@ -29,6 +35,9 @@ class Deploy():
         self.decoder_n_layers = 2
         self.dropout = 0.1
         self.batch_size = 128
+
+        # top-k value
+        self.k = 6
 
         # model setup
         self.searcher = None
@@ -55,15 +64,17 @@ class Deploy():
         # Decode sentence with searcher
         tokens, scores = searcher(input_batch, lengths, max_length)
 
-        # indexes -> words
-        decoded_words = [voc.index2word[token.item()] for token in tokens]
+        decoded_answers = []
 
-        return decoded_words
+        for toks in tokens:
+            # indexes -> words
+            decoded_words = [voc.index2word[token] for token in toks]
+            decoded_answers.append(decoded_words)
+
+        return decoded_answers
 
     def evaluate_question(self, encoder, decoder, searcher, voc, question):
         try:
-            print(question)
-
             # Normalize sentence
             question = normalize_string(question)
 
@@ -71,11 +82,20 @@ class Deploy():
             output_words = self.evaluate(
                 encoder, decoder, searcher, voc, question)
 
-            # Format and print response sentence
-            output_words[:] = [x for x in output_words if not (
-                x == 'EOS' or x == 'PAD')]
-            answer = ' '.join(output_words)
-            print(answer)
+            # # Format and print response sentence
+            # output_words[:] = [x for x in output_words if not (
+            #     x == 'EOS' or x == 'PAD')]
+            # answer = ' '.join(output_words)
+            # print(answer)
+            # return answer
+            answer = ""
+
+            for output in output_words:
+                output[:] = [x for x in output if not (
+                    x == 'EOS' or x == 'PAD')]
+                answer = ' '.join(output)
+                print(answer)
+
             return answer
 
         except KeyError:
@@ -122,10 +142,31 @@ class Deploy():
 
         # Initialize search module
         self.searcher = GreedySearchDecoder(self.encoder, self.decoder)
+        # self.searcher = TopKSearchDecoder(self.encoder, self.decoder, self.k)
 
     def reply(self, question):
         if not self.setup:
             self.setup_model()
             self.setup = True
 
+        # log question to be able to see it in heroku logs
+        print(question)
+
+        # evaluate answer to question
         return self.evaluate_question(self.encoder, self.decoder, self.searcher, self.voc, question)
+
+
+if __name__ == "__main__":
+    dep = Deploy()
+    dep.setup_model()
+
+    while(True):
+        # Get input sentence
+        input_sentence = input('> ')
+
+        # Check if it is quit case
+        if input_sentence == 'q' or input_sentence == 'quit':
+            break
+
+        dep.evaluate_question(
+            dep.encoder, dep.decoder, dep.searcher, dep.voc, input_sentence)

@@ -8,7 +8,7 @@ import unicodedata
 
 import torch
 
-from model import Voc
+from models.voc import Voc
 
 '''
 Utility functions for corpus preprocessing
@@ -200,7 +200,7 @@ def filter_pairs(pairs):
     return [pair for pair in pairs if filter_pair(pair)]
 
 
-def load_prepare_data(corpus, corpus_name, datafile):
+def load_prepare_data(corpus_name, datafile):
     """
     Using the functions defined above, return a populated voc object and pairs list
     """

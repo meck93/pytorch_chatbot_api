@@ -20,7 +20,11 @@ from tensorboardX import SummaryWriter
 from torch import optim
 from torch.jit import script, trace
 
-from model import EncoderRNN, GreedySearchDecoder, LuongAttnDecoderRNN
+from models.decoder import LuongAttnDecoderRNN
+from models.encoder import EncoderRNN
+from models.greedy_search import GreedySearchDecoder
+from models.topk_search import TopKSearchDecoder
+from models.voc import Voc
 from util import *
 
 
@@ -93,7 +97,7 @@ def train(input_variable, lengths, target_variable, mask, max_target_len, encode
     # Perform backpropatation
     loss.backward()
 
-    # Clip gradients: gradients are modified in place
+    # clip gradients: modified in place
     _ = torch.nn.utils.clip_grad_norm_(encoder.parameters(), clip)
     _ = torch.nn.utils.clip_grad_norm_(decoder.parameters(), clip)
 
@@ -276,17 +280,23 @@ def evaluate(encoder, decoder, searcher, voc, sentence, max_length=MAX_LENGTH):
     # Format input sentence as a batch
     # words -> indexes
     indexes_batch = [indexes_from_sentence(voc, sentence)]
+
     # Create lengths tensor
     lengths = torch.tensor([len(indexes) for indexes in indexes_batch])
+
     # Transpose dimensions of batch to match models' expectations
     input_batch = torch.LongTensor(indexes_batch).transpose(0, 1)
+
     # Use appropriate device
     input_batch = input_batch.to(device)
     lengths = lengths.to(device)
+
     # Decode sentence with searcher
     tokens, scores = searcher(input_batch, lengths, max_length)
+
     # indexes -> words
     decoded_words = [voc.index2word[token.item()] for token in tokens]
+
     return decoded_words
 
 
@@ -334,28 +344,31 @@ attn_model = 'dot'
 hidden_size = 512
 encoder_n_layers = 2
 decoder_n_layers = 2
-dropout = 0.1
+dropout = 0.2
 batch_size = 128
 
-corpus_name = 'cornell movie-dialogs corpus'
-corpus = os.path.join('data', corpus_name)
+# corpus_name = 'cornell movie-dialogs corpus'
+# filename = 'formatted_movie_lines.txt'
+corpus_name = "combined"
+filename = 'combined_formatted.txt'
+
+# input filepath
+input_filepath = '../data/{}/{}'.format(corpus_name, filename)
 
 # Set checkpoint to load from; set to None if starting from scratch
-# loadFilename = "/data/save/cb_model/cornell movie-dialogs corpus/max_len_12_best/4000_checkpoint.tar"
+# loadFilename = "../pre_trained_models/pretrained_model_checkpoint.tar"
 loadFilename = None
 
 # tensorboardX summary writer for visualizations
-train_writer = SummaryWriter("runs/test2/train", flush_secs=10)
-val_writer = SummaryWriter('runs/test2/val', flush_secs=10)
-
+train_writer = SummaryWriter("../evaluation/runs/test2/train", flush_secs=10)
+val_writer = SummaryWriter('../evaluation/runs/test2/val', flush_secs=10)
 
 # Initial data formatting and writing (only done once)
 # create_formatted_file(corpus)
 
 # Load/Assemble voc and pairs
 save_dir = os.path.join("data", "save")
-voc, pairs = load_prepare_data(corpus, corpus_name, os.path.join(
-    corpus, 'formatted_movie_lines.txt'))
+voc, pairs = load_prepare_data(corpus_name, input_filepath)
 
 # Print some pairs to validate
 print("\npairs:")
@@ -364,18 +377,6 @@ for pair in pairs[:10]:
 
 # trim the vocabulary to the lower word count limit
 voc, pairs = trim_rare_words(voc, pairs, MIN_COUNT)
-
-# # Example for validation of methods to prepare data for model
-# small_batch_size = 5
-# batches = batch2train_data(voc, [random.choice(pairs)
-#                                  for _ in range(small_batch_size)])
-# input_variable, lengths, target_variable, mask, max_target_len = batches
-
-# print("input_variable:", input_variable)
-# print("lengths:", lengths)
-# print("target_variable:", target_variable)
-# print("mask:", mask)
-# print("max_target_len:", max_target_len)
 
 # Load model if a loadFilename is provided
 if loadFilename:
@@ -418,7 +419,7 @@ teacher_forcing_ratio = 1.0
 learning_rate = 0.0001
 decoder_learning_ratio = 5.0
 l2_penalty = 0.001
-n_iteration = 1000
+n_iteration = 4000
 print_every = 25
 save_every = 500
 
@@ -465,7 +466,7 @@ encoder.eval()
 decoder.eval()
 
 # Initialize search module
-searcher = GreedySearchDecoder(encoder, decoder)
+searcher = TopKSearchDecoder(encoder, decoder, 5)
 
 # Begin chatting (uncomment and run the following line to begin)
 evaluateInput(encoder, decoder, searcher, voc)
