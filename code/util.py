@@ -8,14 +8,14 @@ import unicodedata
 
 import torch
 
-from .models.voc import Voc
+from models.voc import Voc
 
 '''
 Utility functions for corpus preprocessing
 
 '''
 
-MAX_LENGTH = 10  # Maximum sentence length to consider
+MAX_LENGTH = 5  # Maximum sentence length to consider
 MIN_COUNT = 3   # Minimum word count threshold for trimming
 PAD_token = 0   # Used for padding short sentences
 SOS_token = 1   # Start-of-sentence token

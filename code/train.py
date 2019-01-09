@@ -12,12 +12,12 @@ from sklearn.model_selection import train_test_split
 from tensorboardX import SummaryWriter
 from torch import optim
 
-from .models.decoder import LuongAttnDecoderRNN
-from .models.encoder import EncoderRNN
-from .models.greedysearch import GreedySearchDecoder
-from .models.topksearch import TopKSearchDecoder
-from .models.voc import Voc
-from .util import *
+from models.decoder import LuongAttnDecoderRNN
+from models.encoder import EncoderRNN
+from models.greedysearch import GreedySearchDecoder
+from models.topksearch import TopKSearchDecoder
+from models.voc import Voc
+from util import *
 
 
 def train(input_variable, lengths, target_variable, mask, max_target_len, encoder, decoder, embedding,
@@ -241,11 +241,13 @@ def trainIters(model_name, voc, pairs, encoder, decoder, encoder_optimizer, deco
             val_writer.add_scalar('avg_loss', dev_loss, iteration)
 
         # Save checkpoint
-        if (iteration % save_every == 0):
+        if iteration % save_every == 0:
             directory = os.path.join(save_dir, model_name, corpus_name, '{}-{}_{}'.format(
                 encoder_n_layers, decoder_n_layers, hidden_size))
+
             if not os.path.exists(directory):
                 os.makedirs(directory)
+
             torch.save({
                 'iteration': iteration,
                 'en': encoder.state_dict(),
@@ -340,6 +342,16 @@ decoder_n_layers = 2
 dropout = 0.2
 batch_size = 128
 
+# Configure training/optimization
+clip = 50.0
+teacher_forcing_ratio = 0.5
+learning_rate = 0.0001
+decoder_learning_ratio = 5.0
+l2_penalty = 0.0001
+n_iteration = 4000
+print_every = 25
+save_every = 500
+
 # corpus_name = 'cornell movie-dialogs corpus'
 # filename = 'formatted_movie_lines.txt'
 corpus_name = "combined"
@@ -353,14 +365,14 @@ input_filepath = '../data/{}/{}'.format(corpus_name, filename)
 loadFilename = None
 
 # tensorboardX summary writer for visualizations
-train_writer = SummaryWriter("../evaluation/runs/test2/train", flush_secs=10)
-val_writer = SummaryWriter('../evaluation/runs/test2/val', flush_secs=10)
+train_writer = SummaryWriter("../evaluation/runs/test/train", flush_secs=10)
+val_writer = SummaryWriter('../evaluation/runs/test/val', flush_secs=10)
 
 # Initial data formatting and writing (only done once)
 # create_formatted_file(corpus)
 
 # Load/Assemble voc and pairs
-save_dir = os.path.join("data", "save")
+save_dir = os.path.join("../data", "save")
 voc, pairs = load_prepare_data(corpus_name, input_filepath)
 
 # Print some pairs to validate
@@ -405,16 +417,6 @@ if loadFilename:
 encoder = encoder.to(device)
 decoder = decoder.to(device)
 print('Models built and ready to go!')
-
-# Configure training/optimization
-clip = 50.0
-teacher_forcing_ratio = 1.0
-learning_rate = 0.0001
-decoder_learning_ratio = 5.0
-l2_penalty = 0.001
-n_iteration = 4000
-print_every = 25
-save_every = 500
 
 # Ensure dropout layers are in train mode
 encoder.train()
