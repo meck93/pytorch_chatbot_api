@@ -12,7 +12,7 @@ from models.topksearch import TopKSearchDecoder
 
 
 class Deploy(object):
-    def __init__(self, filename="../models/pretrained_model_checkpoint.tar"):
+    def __init__(self, filename="../pre_trained_models/pretrained_model_checkpoint.tar", k=6):
         # set the random seed
         self.SEED = 15
         random.seed(self.SEED)
@@ -26,7 +26,7 @@ class Deploy(object):
         print('Using device:', self.device)
 
         # Set checkpoint to load from
-        self.loadFilename = "../models/pretrained_model_checkpoint.tar"
+        self.loadFilename = "../pre_trained_models/pretrained_model_checkpoint.tar"
 
         # Model configuration
         self.attn_model = 'dot'
@@ -37,7 +37,7 @@ class Deploy(object):
         self.batch_size = 128
 
         # top-k value
-        self.k = 6
+        self.k = k
 
         # model setup
         self.searcher = None
