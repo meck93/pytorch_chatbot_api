@@ -154,11 +154,14 @@ class Deploy(object):
             self.setup_model()
             self.setup = True
 
-        # log question to be able to see it in heroku logs
-        print(question)
-
         # evaluate answer to question
-        return self.evaluate_question(self.encoder, self.decoder, self.searcher, self.voc, question)
+        answer = self.evaluate_question(
+            self.encoder, self.decoder, self.searcher, self.voc, question)
+
+        # log question and answer to heroku console
+        print("Q:", question, "\nA:", answer)
+
+        return answer
 
 
 if __name__ == "__main__":
