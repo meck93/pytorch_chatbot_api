@@ -12,12 +12,12 @@ from sklearn.model_selection import train_test_split
 from tensorboardX import SummaryWriter
 from torch import optim
 
-from models.decoder import LuongAttnDecoderRNN
-from models.encoder import EncoderRNN
-from models.greedysearch import GreedySearchDecoder
-from models.topksearch import TopKSearchDecoder
-from models.voc import Voc
-from util import *
+from .models.decoder import LuongAttnDecoderRNN
+from .models.encoder import EncoderRNN
+from .models.greedysearch import GreedySearchDecoder
+from .models.topksearch import TopKSearchDecoder
+from .models.voc import Voc
+from .util import *
 
 
 def train(input_variable, lengths, target_variable, mask, max_target_len, encoder, decoder, embedding,

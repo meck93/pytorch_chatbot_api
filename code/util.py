@@ -8,7 +8,7 @@ import unicodedata
 
 import torch
 
-from models.voc import Voc
+from .models.voc import Voc
 
 '''
 Utility functions for corpus preprocessing

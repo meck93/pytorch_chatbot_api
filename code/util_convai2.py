@@ -5,7 +5,7 @@ from pprint import pprint
 
 import torch
 
-from models.voc import Voc
+from .models.voc import Voc
 
 
 def create_formatted_file(filename, fields=['question', 'answer']):

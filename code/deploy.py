@@ -2,17 +2,17 @@ import torch
 import os
 import random
 
-from util import *
+from .util import *
 
-from models.voc import Voc
-from models.decoder import LuongAttnDecoderRNN
-from models.encoder import EncoderRNN
-from models.greedysearch import GreedySearchDecoder
-from models.topksearch import TopKSearchDecoder
+from .models.voc import Voc
+from .models.decoder import LuongAttnDecoderRNN
+from .models.encoder import EncoderRNN
+from .models.greedysearch import GreedySearchDecoder
+from .models.topksearch import TopKSearchDecoder
 
 
 class Deploy(object):
-    def __init__(self, filename="../pre_trained_models/pretrained_model_checkpoint.tar", k=6):
+    def __init__(self, filename="./pre_trained_models/pretrained_model_checkpoint.tar", k=6):
         # set the random seed
         self.SEED = 15
         random.seed(self.SEED)
@@ -26,7 +26,7 @@ class Deploy(object):
         print('Using device:', self.device)
 
         # Set checkpoint to load from
-        self.loadFilename = "../pre_trained_models/pretrained_model_checkpoint.tar"
+        self.loadFilename = filename
 
         # Model configuration
         self.attn_model = 'dot'
