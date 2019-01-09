@@ -47,4 +47,4 @@ class GreedySearchDecoder(torch.nn.Module):
             decoder_input = torch.unsqueeze(decoder_input, 0)
 
         # Return collections of word tokens and scores
-        return all_tokens, all_scores
+        return [all_tokens.tolist()], all_scores

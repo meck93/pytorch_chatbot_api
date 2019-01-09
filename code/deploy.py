@@ -96,6 +96,11 @@ class Deploy(object):
                 answer = ' '.join(output)
                 print(answer)
 
+            output[:] = [x for x in output_words[0] if not (
+                x == 'EOS' or x == 'PAD')]
+            answer = ' '.join(output)
+            print("Returned:", answer)
+
             return answer
 
         except KeyError:
