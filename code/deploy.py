@@ -12,6 +12,14 @@ from .models.topksearch import TopKSearchDecoder
 
 
 class Deploy(object):
+    """
+    Class for running a pre-trained pytorch seq2seq model. 
+    Takes care of running the server and the prediction endpoint. 
+    Args:
+       filename (string): filename of the pre-trained seq2seq model
+       k (int): value for the top-k searcher
+    """
+
     def __init__(self, filename="./pre_trained_models/pretrained_model_checkpoint.tar", k=6):
         # set the random seed
         self.SEED = 15
@@ -64,42 +72,27 @@ class Deploy(object):
         # Decode sentence with searcher
         tokens, scores = searcher(input_batch, lengths, max_length)
 
-        decoded_answers = []
+        # only transform the top token sequence
+        tokens = tokens[0]
 
-        for toks in tokens:
-            # indexes -> words
-            decoded_words = [voc.index2word[token] for token in toks]
-            decoded_answers.append(decoded_words)
+        # indexes -> words
+        decoded_words = [voc.index2word[token] for token in tokens]
 
-        return decoded_answers
+        return decoded_words
 
     def evaluate_question(self, encoder, decoder, searcher, voc, question):
         try:
-            # Normalize sentence
+            # normalize sentence
             question = normalize_string(question)
 
-            # Evaluate sentence
+            # evaluate input sentence i.e. produce a response sentence
             output_words = self.evaluate(
                 encoder, decoder, searcher, voc, question)
 
-            # # Format and print response sentence
-            # output_words[:] = [x for x in output_words if not (
-            #     x == 'EOS' or x == 'PAD')]
-            # answer = ' '.join(output_words)
-            # print(answer)
-            # return answer
-            answer = ""
-
-            for output in output_words:
-                output[:] = [x for x in output if not (
-                    x == 'EOS' or x == 'PAD')]
-                answer = ' '.join(output)
-                print(answer)
-
-            output[:] = [x for x in output_words[0] if not (
+            # Format and print response sentence
+            output_words[:] = [x for x in output_words if not (
                 x == 'EOS' or x == 'PAD')]
-            answer = ' '.join(output)
-            print("Returned:", answer)
+            answer = ' '.join(output_words)
 
             return answer
 
@@ -109,7 +102,7 @@ class Deploy(object):
 
     def setup_model(self):
         # Load/Assemble voc
-        self.voc = Voc('cornell movie-dialogs corpus')
+        self.voc = Voc('deployed ;-)')
 
         # If loading on same machine the model was trained on
         checkpoint = torch.load(self.loadFilename, map_location=self.device)

@@ -10,7 +10,7 @@ predictor = Deploy()
 
 @app.route('/test', methods=['GET'])
 def get_tasks():
-    return jsonify('message': 'server up and running!')
+    return jsonify({'message': 'server up and running!'})
 
 
 @app.route('/prediction', methods=['POST', 'GET'])
