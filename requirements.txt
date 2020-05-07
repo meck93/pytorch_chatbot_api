@@ -2,4 +2,4 @@ gunicorn==20.0.4
 Flask==1.1.2
 numpy==1.18.4
 https://download.pytorch.org/whl/cpu/torch-1.0.0-cp37-cp37m-linux_x86_64.whl
-torchvision
+torchvision==0.6.0
